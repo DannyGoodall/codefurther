@@ -1,0 +1,7 @@
+include requirements*.txt
+include README.rst
+include LICENSE
+include CHANGES.rst
+include demo.py
+include simpledemo.py
+include pythontop40/package_info.json

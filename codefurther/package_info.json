@@ -1,0 +1,13 @@
+{
+    "name": "codefurther",
+    "copyright": "Danny Goodall, 2014",
+    "author": "Danny Goodall",
+    "version_full": "0.1.1.dev",
+    "version_minor": "0.1",
+    "url": "https://bitbucket.org/dannygoodall/codefurther",
+    "license": "Apache v2.0",
+    "author_email": "danny@onebloke.com",
+    "description": "A package of Python modules to access various data over the internet - Intended to be used as a teaching aid in UK schools.",
+    "pull_url": "https://bitbucket.org/dannygoodall/codefurther/pull-requests",
+    "issues_url": "https://bitbucket.org/dannygoodall/codefurther/issues"
+}

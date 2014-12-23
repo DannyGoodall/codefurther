@@ -1,0 +1,13 @@
+
+venv34
+ven27
+.idea
+*.py[co]
+
+docs/_build
+dist/
+*.egg-info/
+
+
+venv34glob
+NULL.rst
