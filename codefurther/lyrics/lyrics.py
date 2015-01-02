@@ -14,6 +14,7 @@ from __future__ import print_function
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from future.standard_library import hooks
 
 """The ``CFLyrics`` module contains the high level classes that are used to package the returned data such as
 :py:class:`Entry`, :py:class:`Chart` and :py:class:`Change`.
@@ -36,31 +37,9 @@ from nap.url import Url
 from codefurther.errors import CodeFurtherConnectionError, CodeFurtherConversionError, CodeFurtherHTTPError, \
     CodeFurtherReadTimeoutError
 
-
-class LyricsAPI(Url):
-    """Provides the physical connection to the API for the Lyrics object.
-
-    This is the route into API and is a subclass of nap.Url. It provides the get method that carries out the request.get
-    method for the chart API.
-
-    This class overrides the :func:`LyricsAPI.get` and :func:`LyricsAPI.after_request` methods in the base class. The
-    response returned from the :class:`nap.Url` class is recursively parsed to convert any embedded
-    :class:`dict` objects, to :class:`~munch.Munch` types. This is to allow `dot access` to the members of the response,
-    as well as using the traditional dict['key'] access.
-
-    Attributes:
-        convert (dict): contains none or more key, value pairs.
-    """
-
-    def after_request(self, response):
-        if response.status_code != 200:
-            response.raise_for_status()
-
-        # Now turn the dicts in the Json response into Munch types so that
-        # they can be accessed using .notation
-
-        return response.json()
-
+# Import urljoin for V2 and V3 - http://python-future.org/compatible_idioms.html
+with hooks():
+    from urllib.parse import urljoin
 
 class Lyrics(object):
     """ Provides the programmer with properties that return lyrics from the Wikia site.
@@ -85,8 +64,32 @@ class Lyrics(object):
         Returns:
             Lyrics (:py:class:`Lyrics`): The Lyrics model instance.
         """
-        self.api = LyricsAPI(base_url)
+        self.base_url = base_url
 
+    def _get_json_response(self, service_url):
+
+        full_url = urljoin(
+            self.base_url,
+            service_url
+        )
+
+        try:
+            response = requests.get(full_url).json()
+        except requests.exceptions.HTTPError as e:
+            message = Lyrics.error_format.format(
+                service_url,
+                e.response.status_code
+            )
+            print(message)
+            raise CodeFurtherHTTPError(message, e.response.status_code)
+        except (requests.exceptions.ConnectionError, requests.exceptions.SSLError, requests.exceptions.ConnectTimeout):
+            raise CodeFurtherConnectionError("Could not connect to remote server.")
+        except requests.exceptions.ReadTimeout:
+            raise CodeFurtherReadTimeoutError("The remote server took longer than expected to reply.")
+        except Exception as e:
+            raise
+
+        return response
 
     def song_lyrics(self, artist, title):
         """Return a list of string lyrics for the given artist and song title.
@@ -101,12 +104,14 @@ class Lyrics(object):
         if artist is None or not artist or title is None or not title:
             raise ValueError("The get_song_lyrics method needs both the artist and the title of the song you are "
                              "looking for to be specified.")
-        json_response = self.api.get(
-            'lyrics/{}/{}'.format(
-                artist,
-                title
-            )
+
+        service_url = 'lyrics/{}/{}'.format(
+            artist,
+            title
         )
+
+        json_response = self._get_json_response(service_url)
+
         if "lyrics" not in json_response:
             raise ValueError(self.bad_response)
 
@@ -118,11 +123,12 @@ class Lyrics(object):
         if artist is None or not artist:
             raise ValueError("The get_artist_songs method was expecting an artist to be supplied, but none was found.")
 
-        json_response = self.api.get(
-            'songs/{}'.format(
-                artist
-            )
+        service_url = "songs/{}".format(
+            artist
         )
+
+        json_response = self._get_json_response(service_url)
+
         if 'songs' not in json_response:
             raise ValueError(self.bad_response)
 
@@ -151,57 +157,33 @@ class Lyrics(object):
     def _artist_search(self, artist):
         if artist is None or not artist:
             raise ValueError("The search_for_artist method was expecting an artist to be supplied, but none was found.")
-        json_response = self.api.get(
-            'search/{}'.format(
-                artist
-            )
+
+        service_url = 'search/{}'.format(
+            artist
         )
+
+        json_response = self._get_json_response(service_url)
+
         if 'artist' not in json_response:
             raise ValueError(self.bad_response)
 
         return json_response['artist']
 
     def artist_search(self, artist):
-        artist_details = self._artist_search(artist)
-        return artist_details['artist']
+        """Returns the first result of a search for the given artist on Lyrics Wikia.
 
-    def _get_data(self, url, params=None, convert=None):
-        """Internal routine to retrieve data from the external service.
+        **Proceed with a little caution as I'm not completely sure that these results are accurate**.
 
-        The URL component that is passed is added to the base URL that was specified when the object was instantiated.
-        Additional params passed will be passed to the API as key=value pairs, and the return data is parsed and
-        any :func:`dict` contained within the structure is converted to a :class:`Munch` type. In addition, the convert
-        :class:`dict` is used to optionally convert values returned from the API to different types.
+        Returns a string containing the search result. The actual string returned depends on what the search
+        functionality at Lyrics Wikia returns.
 
         Args:
-            url (str): The remote url to connect to.
-            params (dict): Additional parameters will be passed as key=value pairs to the URL as query variables
-                ?key=value.
-            convert (dict): The JSON structure that is returned is parsed for instances of ``key``, and if
-                found the, value of convert[key] is used to convert it. For example supplying ``{"position",int}``
-                would ensure that if the key ``position`` was found in the JSON structure, it will be converted to type
-                int.
+            artist: (:py:class:`str`) The name of the artist being searched for.
         Returns:
-            response (JSON): All embedded :class:`dict` will be converted to :class:`Munch`.
+            result: (:py:class:`str`): The result of the search If the string contains a colon ``:``, then it typically
+                means that an artist and song has been returned, separated by the colon. If a string is returned without
+                a colon, then it likely means that an exact match for the search artist was found.
         """
-        if not params:
-            params = {}
-        if not convert:
-            convert = {}
-        try:
-            response_json = self.api.get(url, params=params, convert=convert)
-        except requests.exceptions.HTTPError as e:
-            message = Lyrics.error_format.format(
-                url,
-                e.response.status_code
-            )
-            print(message)
-            raise CodeFurtherHTTPError(message, e.response.status_code)
-        except (requests.exceptions.ConnectionError, requests.exceptions.SSLError, requests.exceptions.ConnectTimeout):
-            raise CodeFurtherConnectionError("Could not connect to remote server.".format(self.what_do_i_manage))
-        except requests.exceptions.ReadTimeout:
-            raise CodeFurtherReadTimeoutError("The remote server took longer than expected to reply.")
-        except Exception as e:
-            raise
-        return response_json
+        artist_details = self._artist_search(artist)
+        return artist_details['artist']
 

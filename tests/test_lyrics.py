@@ -15,45 +15,88 @@
 # limitations under the License.
 
 import os
+import unittest
+from codefurther.utils import request_send_file
 
 __author__ = 'User'
 
 from expects import *
-import mock
+import httpretty
 from codefurther import lyrics, errors, utils
 import json
 
-def fake_get_data(instance, url, params=None, convert=None):
-    """
-    A stub for get_data that returns a json responses from the filesystem.
-    """
-    # Remove any spaces in the URL
-    path = url.replace(" ", "")
-    resource_file = os.path.normpath(
-        '../tests/resources/{}.json'.format(
-            path
+
+class FileSpoofer:
+    def __init__(self, api_base="http://cflyricsserver.herokuapp.com/lyricsapi", base_folder="tests/resources"):
+        self.api_base = api_base
+        self.base_folder = base_folder
+
+    def isolate_path_filename(self, uri, api_base=None):
+        """Accept a url and return the part that is unique to this request
+
+        Accept a uri in the following format - http://site/folder/filename.ext and return the component part that is
+        unique to the request when the base api of http://site/folder has been removed
+
+        Args:
+            uri (:py:class:`str`): The uri from which the filename should be returned
+            api_base (:py:class:`str`): The new base to use, defaults to self.api_base
+        Returns:
+            file_component (:py:class:`str`): The isolated path
+        """
+        # Did we get an api_base
+        api_base = api_base if api_base else self.api_base
+
+        # Look for the part after the api_base
+        url_parse = uri.lower().rpartition(api_base)
+
+        # Take everything to the right of the api_base
+        file_component = url_parse[2]
+
+        return file_component
+
+    def get_file_contents_as_text(self, url_tail):
+        path = url_tail.replace("/", "")
+
+        resource_file = os.path.normpath(
+            self.base_folder.format(
+                path
+            )
         )
-    )
-    # Read the contents of the JSON file as string
-    file_text = open(resource_file, mode='rb').read()
-    json_dict = json.loads(file_text.decode())
-    json_munch = utils.recurse_structure(json_dict, convert=convert)
-    return json_munch
+
+        # Read the contents of the JSON file as string
+        file_text = open(resource_file, mode='rb').read()
+        # json_dict = json.loads(file_text.decode())
+        # return json_dict
+        return file_text.decode()
+
+    def request_send_file(self, request, uri, headers):
+        if uri.endswith('-404-'):
+            return (400, headers, "")
+        filename = self.isolate_path_filename(uri)
+        file_contents = self.get_file_contents_as_text(filename)
+        return 200 if 'status' not in headers else headers['status'], headers, file_contents
 
 
-class TestPatchedTop40GetData:
-
+class TestPatchedTop40GetData(unittest.TestCase):
     def setUp(self):
-        self.patcher = mock.patch('codefurther.lyrics.Lyrics._get_data', fake_get_data)
-        self.patcher.start()
+        self.file_spoofer = FileSpoofer()
         self.lyrics_machine = lyrics.Lyrics()
 
     def tearDown(self):
-        self.patcher.stop()
+        pass
 
+    @httpretty.activate
     def test_should_fail_if_api_response_format_incorrect_for_song_lyrics(self):
+        httpretty.register_uri(
+            httpretty.GET,
+            "http://cflyricsserver.herokuapp.com/lyricsapi/lyrics/billy bragg/days like these",
+            body=self.file_spoofer.request_send_file,
+            content_type='text/json',
+            status=200
+        )
+
         def callback():
-            data = self.lyrics_machine._get_data("/lyricsapi/lyrics/billy bragg/days like these")
+            data = self.lyrics_machine._get_json_response("lyrics/billy bragg/days like these")
             return data
 
         expect(callback()).to(be_a(dict))
@@ -61,7 +104,7 @@ class TestPatchedTop40GetData:
 
     def test_should_fail_if_api_response_format_incorrect_for_artist_songs(self):
         def callback():
-            data = self.lyrics_machine._get_data("/lyricsapi/songs/billy bragg")
+            data = self.lyrics_machine._get_json_response("songs/billy bragg")
             return data
 
         expect(callback()).to(be_a(dict))
@@ -70,7 +113,7 @@ class TestPatchedTop40GetData:
 
     def test_should_fail_if_api_response_format_incorrect_for_artist_search(self):
         def callback():
-            data = self.lyrics_machine._get_data("/lyricsapi/search/billy bragg")
+            data = self.lyrics_machine._get_json_response("search/billy bragg")
             return data
 
         expect(callback()).to(be_a(dict))

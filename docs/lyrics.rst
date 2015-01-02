@@ -15,7 +15,7 @@
    """""""""
 
 ###############################
-Lyrics - Search for song lyrics
+lyrics - Search for song lyrics
 ###############################
 
 The **Lyrics** module is part of the **codefurther** Python package, and is designed to be used in UK schools to provide
@@ -52,26 +52,22 @@ Usage
    from codefurther.lyrics import Lyrics
    lyrics_machine = Lyrics()
 
-To print out the lyrics to a song, the :py:meth:`Lyrics.song_lyrics` method is used to to find the song, given the
+To print out the lyrics to a song, the :py:meth:`~lyrics.Lyrics.song_lyrics` method is used to to find the song, given the
 name of the artist and the name of the song.::
 
     lyrics_list = lyrics_machine.song_lyrics("billy bragg", "days like these")
 
 The lyrics are returned as a :py:class:`list` of :py:class:`str` items, and be printed simply, like so.::
 
-    for count, line in enumerate(lyrics_list):
-        print(
-            "{}. {}".format(
-                count+1,
-                line
-            )
-        )
+    for line in lyrics_list:
+        print( line )
+
 
 The :py:class:`~lyrics.Lyrics` instance exposes a number of properties to the programmer. These include:
 
-* :py:attr:`Lyrics.song_lyrics <codefurther.lyrics.Lyrics.song_lyrics>`
-* :py:attr:`Lyrics_artist_songs <codefurther.lyrics.Lyrics.artist_songs>`
-* :py:attr:`Lyrics_artist_search <codefurther.lyrics.Lyrics.artist_search>`
+* :py:attr:`Lyrics.song_lyrics <lyrics.Lyrics.song_lyrics>`
+* :py:attr:`Lyrics_artist_songs <lyrics.Lyrics.artist_songs>`
+* :py:attr:`Lyrics_artist_search <lyrics.Lyrics.artist_search>`
 
 The example code below shows how you can use these properties. This code, simply returns the lyrics to a song, given
 the name of the artist and the name of the song.::

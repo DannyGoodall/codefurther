@@ -55,15 +55,19 @@ And this, don't forget this::
     print booby.to_json()
     '{"owner": {"login": "jaimegildesagredo", "name": "Jaime Gil de Sagredo"}, "name": "Booby"}'
 """
-
 from __future__ import print_function
+from future.standard_library import hooks
+
+# Import urljoin for V2 and V3 - http://python-future.org/compatible_idioms.html
+with hooks():
+    from urllib.parse import urljoin
+
 __author__ = 'Danny Goodall'
 import requests
 import requests.exceptions
-from nap.url import Url
+import requests_cache
 from booby import Model, fields
 from codefurther.errors import CodeFurtherConnectionError, CodeFurtherError, CodeFurtherHTTPError, CodeFurtherReadTimeoutError
-from codefurther.utils import recurse_structure
 
 
 class Change(Model):
@@ -171,72 +175,64 @@ class Chart(Model):
     current = fields.Boolean(required=False)
 
 
-class ChartsAPI(Url):
-    """Provides the physical connection to the API for the Top40 object.
-
-    This is the route into API and is a subclass of nap.Url. It provides the get method that carries out the request.get
-    method for the chart API.
-
-    This class overrides the :func:`ChartsAPI.get` and :func:`ChartsAPI.after_request` methods in the base class. The
-    response returned from the :class:`nap.Url` class is recursively parsed to convert any embedded
-    :class:`dict` objects, to :class:`~munch.Munch` types. This is to allow `dot access` to the members of the response,
-    as well as using the traditional dict['key'] access.
-
-    Attributes:
-        convert (dict): contains none or more key, value pairs.
-    """
-    def __init__(self, *args, **kwargs):
-        self.convert = {}
-        super(ChartsAPI, self).__init__(*args, **kwargs)
-
-    def get(self, *args, **kwargs):
-        # Remove the convert kwarg before calling super class get
-        self.convert = kwargs.pop("convert", {})
-        return (
-            super(ChartsAPI, self).get(*args, **kwargs)
-        )
-
-    def after_request(self, response):
-        if response.status_code != 200:
-            response.raise_for_status()
-
-        # Now turn the dicts in the Json response into Munch types so that
-        # they can be accessed using .notation
-
-        response_munch = recurse_structure(response.json(), convert=self.convert)
-
-        return response_munch
-
-
 class Top40(object):
     """ Provides the programmer with properties that return the Top 40 chart data.
 
     The programmer creates an instance of this object, and then uses the exposed properties to access the data about
     the singles and albums charts.
 
+    Creates and returns the object instance.
+
+    All results will be cached for the duration of the existence of this instance in memory. However, if
+    cache_duration is specified (not None), then results will be persisted to a local
+    sqlite DB for the duration, in seconds, or cache_duration. A config for requests cache can also
+    be passed in cache_config too, or if None, the default setting is used.
+
+    Args:
+        base_url (str): The base url of the remote API before the specific service details are appended.
+            For example, the base url might be "a.site.com/api/", and the service "/albums/", when appended to the
+            base url, creates the total url required to access the album data.
+        cache_duration (:py:class:`int`): If None, then the persistent cache will be disabled. Otherwise
+            the cache duration specified will be used.
+        cache_config (:py:class:`dict`): If None the default config will be used to pass to the
+            ``install_cache`` method of requests_cache, otherwise the config in this parameter will be used.
+            Any 'expire_after' key in the cache config will be replaced and the duration set to
+            cache_duration.
     Attributes:
         error_format (str): The format string to be used when creating error messages.
-        what_am_i (str): Not implemented yet.
-        what_do_i_manage (str): Not implemented yet.
+        base_url (:py:class:`str`): The base url used to access the remote api
+        cache_duration (:py:class:`int`): The duration in seconds that results will be returned from the cache before
+            a fresh read of the external API will replace them.
+        cache_config (:py:class:`dict`): A dictionary that describes the config that will be passed to the
+            ``request_cache`` instance - allowing different backends and other options to be set.
+    Returns:
+        Top40 (:py:class:`Top40`): The Top40 instance.
     """
     error_format = "Received an error whist reading from {}: Returned code: {}"
-    what_am_i = "Top40"
-    what_do_i_manage = "charts information"
 
-    def __init__(self, base_url="http://ben-major.co.uk/labs/top40/api/"):
-        """Creates and returns the object instance.
+    def __init__(self, base_url="http://ben-major.co.uk/labs/top40/api/",
+                 cache_duration=3600,
+                 cache_config=None):
 
-        Args:
-            base_url (str): The base url of the remote API before the specific service details are appended.
-                For example, the base url might be "a.site.com/api/", and the service "/albums/", when appended to the
-                base url, creates the total url required to access the album data.
-        Returns:
-            Top40 (Top40): The Top40 model instance.
-        """
-        self.api = ChartsAPI(base_url)
-        self.reset_cache()
+        # Store the base url that we will append our service url enpoints to
+        self.base_url = base_url
 
-    def reset_cache(self):
+        # If cache_duration is not None, then we will use a persistent request_cache
+        self.cache_duration = cache_duration
+
+        # If we've been passed a different config, then we should use that instead of the class-level version
+        if cache_config is None:
+            self.cache_config = {
+                'cache_name': 'top40cache'
+            }
+        else:
+            self.cache_config = cache_config
+
+        # The cache_duration tells us how long responses will be cached in
+        # persistent storage (in seconds)
+        self.reset_cache(self.cache_duration)
+
+    def reset_cache(self, cache_duration=None):
         """Remove any cached singles or albums charts
 
         Because the UK Top40 charts only change once per week, :py:class:`Top40` will cache the results of singles and
@@ -244,49 +240,82 @@ class Top40(object):
         information will only actually call the remote API once. If, for whatever reason you need to ensure that an
         attempt to access single or album information actually results in a call to the remote API, then calling the
         :py:meth:`Top40.reset_cache` method will do this, by clearing down any existing cached chart information.
+
+        If a cache is in place, then the results will also be cached across python runtime executions.
+
+        Params:
+            cache_duration (:py:class:`int`): If ``None`` we will uninstall the requests cache and the next
+                read from the API will cause a remote call to be executed. Otherwise it specifies the number of
+                seconds before the persistent cache will expire.
         """
+
+        if cache_duration is None:
+            # We are disabling the existing persistent_cache
+            requests_cache.uninstall_cache()
+        else:
+            # We are setting a persistent cache so insert the duration into our cache config
+            self.cache_config['expire_after'] = cache_duration
+
+            # and then install the cache with this configuration
+            requests_cache.install_cache(**self.cache_config)
+
+        # Remember the new duration
+        self.cache_duration = cache_duration
+
+        # Rest the in-memory caches to force a read from remote site
         self._albums_chart = None
         self._singles_chart = None
 
-    def _get_data(self, url, params=None, convert=None):
+    def _get_data(self, service_url, params=None):
         """Internal routine to retrieve data from the external service.
 
         The URL component that is passed is added to the base URL that was specified when the object was instantiated.
-        Additional params passed will be passed to the API as key=value pairs, and the return data is parsed and
-        any :func:`dict` contained within the structure is converted to a :class:`Munch` type. In addition, the convert
-        :class:`dict` is used to optionally convert values returned from the API to different types.
+        Additional params passed will be passed to the API as key=value pairs, and the return data converted from JSON
+        to a Python :class:`dict` .
 
         Args:
-            url (str): The remote url to connect to.
+            service_url (str): The remote url to connect to.
             params (dict): Additional parameters will be passed as key=value pairs to the URL as query variables
                 ?key=value.
-            convert (dict): The JSON structure that is returned is parsed for instances of ``key``, and if
-                found the, value of convert[key] is used to convert it. For example supplying ``{"position",int}``
-                would ensure that if the key ``position`` was found in the JSON structure, it will be converted to type
-                int.
         Returns:
-            response (JSON): All embedded :class:`dict` will be converted to :class:`Munch`.
+            response (JSON): A JSON document converted to Python equivalent classes.
+        Raises:
+            Top40HTTPError (:py:class:`~errors.Top40HTTPError`): If a status code that is not 200 is returned
+            Top40ConnectionError (:py:class:`~errors.Top40ConnectionError`): If a connection could not be established to the remote server
+            Top40ReadTimeoutError (:py:class:`~errors.Top40ReadTimeoutError`): If the remote server took too long to respond
         """
+        # TODO - Change the Munch references to dict
+
         if not params:
             params = {}
-        if not convert:
-            convert = {}
+
+        # Build the full url from the base url + the url for this service
+        full_url = urljoin( self.base_url, service_url.lstrip('/'))
         try:
-            response_json = self.api.get(url, params=params, convert=convert)
+            response = requests.get(full_url, params=params)
         except requests.exceptions.HTTPError as e:
             message = Top40.error_format.format(
-                url,
+                service_url,
                 e.response.status_code
             )
-            print(message)
             raise CodeFurtherHTTPError(message, e.response.status_code)
         except (requests.exceptions.ConnectionError, requests.exceptions.SSLError, requests.exceptions.ConnectTimeout):
-            raise CodeFurtherConnectionError("Could not connect to remote server.".format(self.what_do_i_manage))
+            raise CodeFurtherConnectionError("Could not connect to remote server.")
         except requests.exceptions.ReadTimeout:
             raise CodeFurtherReadTimeoutError("The remote server took longer than expected to reply.")
         except Exception as e:
             raise
-        return response_json
+
+        # Check for status code and raise Top40HTTPError if a non 200 result is received.
+        if response.status_code != 200:
+            message = Top40.error_format.format(
+                service_url,
+                response.status_code
+            )
+            raise CodeFurtherHTTPError(message, response.status_code)
+
+        # Treat the response text as JSON and return the Python equivalent
+        return response.json()
 
     def _get_albums_chart(self):
         """Internal routine to pull the albums chart information into the cache
@@ -302,6 +331,10 @@ class Top40(object):
         Returns:
             :py:class:`Chart`: The albums' chart object - an instance of the :class:`Chart` class containing the album
                 information and the and the issue and retrieval dates specific to this chart.
+        Raises:
+            Top40HTTPError (:py:class:`~errors.Top40HTTPError`): If a status code that is not 200 is returned
+            Top40ConnectionError (:py:class:`~errors.Top40ConnectionError`): If a connection could not be established to the remote server
+            Top40ReadTimeoutError (:py:class:`~errors.Top40ReadTimeoutError`): If the remote server took too long to respond
         """
         if self._albums_chart is None:
             self._get_albums_chart()
@@ -312,7 +345,12 @@ class Top40(object):
         """A ``property`` that returns a :py:class:`list` of album :py:class:`Entry` types.
 
         Returns:
-            :py:class:`list` : A :py:class:`list` of :class:`Entry` instances. Each entry describes an album in the chart.
+            :py:class:`list` : A :py:class:`list` of :class:`Entry` instances. Each entry describes an album in the
+                chart.
+        Raises:
+            Top40HTTPError (:py:class:`~errors.Top40HTTPError`): If a status code that is not 200 is returned
+            Top40ConnectionError (:py:class:`~errors.Top40ConnectionError`): If a connection could not be established to the remote server
+            Top40ReadTimeoutError (:py:class:`~errors.Top40ReadTimeoutError`): If the remote server took too long to respond
         """
         albums_chart = self.albums_chart
         return albums_chart.entries
@@ -330,6 +368,10 @@ class Top40(object):
         Returns:
             :py:class:`Chart`: The singles' chart object - an instance of the :class:`Chart` class containing the
                 singles information and the issue and retrieval dates specific to this chart.
+        Raises:
+            Top40HTTPError (:py:class:`~errors.Top40HTTPError`): If a status code that is not 200 is returned
+            Top40ConnectionError (:py:class:`~errors.Top40ConnectionError`): If a connection could not be established to the remote server
+            Top40ReadTimeoutError (:py:class:`~errors.Top40ReadTimeoutError`): If the remote server took too long to respond
         """
         if self._singles_chart is None:
             self._get_singles_chart()
@@ -340,7 +382,12 @@ class Top40(object):
         """A ``property`` that returns a list of single entries.
 
         Returns:
-            :py:class:`list`: A :py:class:`list` of :class:`Entry` instances. Each entry describes a single in the chart.
+            :py:class:`list`: A :py:class:`list` of :class:`Entry` instances. Each entry describes a single in the
+                chart.
+        Raises:
+            Top40HTTPError (:py:class:`~errors.Top40HTTPError`): If a status code that is not 200 is returned
+            Top40ConnectionError (:py:class:`~errors.Top40ConnectionError`): If a connection could not be established to the remote server
+            Top40ReadTimeoutError (:py:class:`~errors.Top40ReadTimeoutError`): If the remote server took too long to respond
         """
         singles_chart = self.singles_chart
         return singles_chart.entries
