@@ -1,3 +1,4 @@
+-r requirements.txt
 twine==1.4.0
 sphinx==1.2.3
 sphinxcontrib-napoleon==0.2.8
