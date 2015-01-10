@@ -35,7 +35,7 @@ import requests
 import requests.exceptions
 from nap.url import Url
 from codefurther.errors import CodeFurtherConnectionError, CodeFurtherConversionError, CodeFurtherHTTPError, \
-    CodeFurtherReadTimeoutError
+    CodeFurtherReadTimeoutError, CodeFurtherError
 
 # Import urljoin for V2 and V3 - http://python-future.org/compatible_idioms.html
 with hooks():
@@ -74,22 +74,22 @@ class Lyrics(object):
         )
 
         try:
-            response = requests.get(full_url).json()
+            response = requests.get(full_url)
+            response.raise_for_status()
         except requests.exceptions.HTTPError as e:
+            status_code = response.status_code
             message = Lyrics.error_format.format(
                 service_url,
-                e.response.status_code
+                status_code
             )
-            print(message)
             raise CodeFurtherHTTPError(message, e.response.status_code)
-        except (requests.exceptions.ConnectionError, requests.exceptions.SSLError, requests.exceptions.ConnectTimeout):
-            raise CodeFurtherConnectionError("Could not connect to remote server.")
-        except requests.exceptions.ReadTimeout:
-            raise CodeFurtherReadTimeoutError("The remote server took longer than expected to reply.")
+        except (requests.exceptions.ConnectionError, requests.exceptions.SSLError, requests.exceptions.ConnectTimeout) as e:
+            raise CodeFurtherConnectionError("Could not connect to remote server.",e)
+        except requests.exceptions.ReadTimeout as e:
+            raise CodeFurtherReadTimeoutError("The remote server at "+service_url+" took longer than expected to reply.",e)
         except Exception as e:
-            raise
-
-        return response
+            raise CodeFurtherError("An unknown error occurred when trying to access "+service_url, e)
+        return response.json()
 
     def song_lyrics(self, artist, title):
         """Return a list of string lyrics for the given artist and song title.
@@ -118,10 +118,21 @@ class Lyrics(object):
         # Return the :py:class:`list` of lyric strings
         return json_response['lyrics']
 
+    def artist_songs(self, artist):
+        """Returns a generator that yields song titles for the given artist.
 
-    def _artist_songs(self, artist):
+        If the `all_details` flag is set to `True`, then a :py:class:`dict` is returned that contains. Returns an empty generator if no songs were found for the specified artist.
+
+        Args:
+            artist: (:py:class:`str`) The name of the artist for the song being looked up.
+        Returns:
+            song_list: (:py:class:`list`): A :py:class:`list` of :py:class:`str` representing each song of the artist.
+        Raises:
+            ValueError: If artist is :py:class:`None` or ``""`` (empty).
+            ValueError: If the response from the server is not in the correct format.
+        """
         if artist is None or not artist:
-            raise ValueError("The get_artist_songs method was expecting an artist to be supplied, but none was found.")
+            raise ValueError("The artist_songs method was expecting an artist to be supplied, but none was found.")
 
         service_url = "songs/{}".format(
             artist
@@ -132,31 +143,15 @@ class Lyrics(object):
         if 'songs' not in json_response:
             raise ValueError(self.bad_response)
 
-        return json_response
-
-    def artist_songs(self, artist, all_details=False):
-        """Returns a generator that yields song titles for the given artist.
-
-        If the `all_details` flag is set to `True`, then a :py:class:`dict` is returned that contains. Returns an empty generator if no songs were found for the specified artist.
-
-        Args:
-            artist: (:py:class:`str`) The name of the artist for the song being looked up.
-            all_title: (:py:class:`str`) The name of the song being looked up.
-        Yields:
-            lyric: (:py:class:`str`): one for each lyric line in the song. Expect blank lines to be returned to returned to space verses from the chorus, etc.
-        """
-
-        json_response = self._artist_songs(artist)
-
-        for song_detail in json_response['songs']:
-            if all_details:
-                yield song_detail
-            else:
-                yield song_detail['song']
+        return json_response['songs']
 
     def _artist_search(self, artist):
+        """Internal method to return all details from artist search as a dict
+
+        This method returns a dict and is wrapped by artist_search to return just the string of the artist name
+        """
         if artist is None or not artist:
-            raise ValueError("The search_for_artist method was expecting an artist to be supplied, but none was found.")
+            raise ValueError("The artist_search method was expecting an artist to be supplied, but none was found.")
 
         service_url = 'search/{}'.format(
             artist
@@ -169,6 +164,7 @@ class Lyrics(object):
 
         return json_response['artist']
 
+
     def artist_search(self, artist):
         """Returns the first result of a search for the given artist on Lyrics Wikia.
 
@@ -180,10 +176,35 @@ class Lyrics(object):
         Args:
             artist: (:py:class:`str`) The name of the artist being searched for.
         Returns:
-            result: (:py:class:`str`): The result of the search If the string contains a colon ``:``, then it typically
+            result: (:py:class:`str`): The result of the search. If the string contains a colon ``:``, then it typically
                 means that an artist and song has been returned, separated by the colon. If a string is returned without
-                a colon, then it likely means that an exact match for the search artist was found.
+                a colon, then it likely means that only an artist match was found, but the artise returned should be
+                checked to see if it is the same as the artist that was searched for.
         """
-        artist_details = self._artist_search(artist)
-        return artist_details['artist']
 
+        if artist is None or not artist:
+            raise ValueError("The artist_search method was expecting an artist to be supplied, but none was found.")
+
+        json_response = self._artist_search(artist)
+
+        return json_response['artist']
+
+    def artist_exists(self, artist):
+        """Determines whether an artist exists in Lyrics Wikia USING THE SPELLING and puntuation provided.
+
+        **Proceed with a little caution as I'm not completely sure that these results are accurate**.
+
+        Returns True if the artist specified is found exactly. It may be that the artist is known by another, similar
+        name.
+
+        Args:
+            artist: (:py:class:`str`) The name of the artist being searched for.
+        Returns:
+            result: (:py:class:`bool`): If the artist was found exactly as named in the search results, then ``True``
+                is returned, otherwise False is returned.
+        """
+        artist_search_result = self.artist_search(artist)
+        if ":" in artist_search_result or not artist_search_result.lower().startswith(artist.lower()):
+            return False
+        else:
+            return True

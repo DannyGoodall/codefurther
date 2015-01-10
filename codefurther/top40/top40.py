@@ -56,6 +56,8 @@ And this, don't forget this::
     '{"owner": {"login": "jaimegildesagredo", "name": "Jaime Gil de Sagredo"}, "name": "Booby"}'
 """
 from __future__ import print_function
+import tempfile
+
 from future.standard_library import hooks
 
 # Import urljoin for V2 and V3 - http://python-future.org/compatible_idioms.html
@@ -223,7 +225,9 @@ class Top40(object):
         # If we've been passed a different config, then we should use that instead of the class-level version
         if cache_config is None:
             self.cache_config = {
-                'cache_name': 'top40cache'
+                'cache_name': '{}/top40cache'.format(
+                    tempfile.gettempdir()
+                )
             }
         else:
             self.cache_config = cache_config
