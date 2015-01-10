@@ -69,7 +69,7 @@ class GetDirections:
     >>> directions.raw
 
     Once the object has been created, subsequent calls to the :py:meth:`GetDirections.journey` method will create
-    new routes without the need to create a band new :py:meth:`GetDirections` object.
+    new routes without the need to create a brand new :py:meth:`GetDirections` object.
 
     >>> new_directions = directions.new_journey("winchester, uk", "southampton, uk", "driving")
     """

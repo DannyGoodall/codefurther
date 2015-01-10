@@ -39,14 +39,14 @@ class CodeFurtherReadTimeoutError(CodeFurtherError):
 class CodeFurtherHTTPError(CodeFurtherError):
     """This exception is raised if an HTTP level error was experienced. i.e.
     no physical or connection error, but a web server error was returned."""
-    def __init__(self, message, return_code):
-        """Create a new instance of the Top40HTTPError exception
+    def __init__(self, message, return_code=0):
+        """Create a new instance of the CodeFurtherHTTPError exception
 
         Args:
             message (:py:class:`str`):  The error message text.
             return_code: (:py:class:`int`): The error code for this exception.
         Returns:
-            Top40HTTPError (:py:func:`Top40HTTPError`) -- The Exception instance.
+            CodeFurtherHTTPError (:py:class:`CodeFurtherHTTPError`) -- The Exception instance.
         """
         self.message = message
         self.error_code = return_code

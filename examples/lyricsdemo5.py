@@ -3,7 +3,7 @@
 # Copyright 2014 Danny Goodall
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the Lice  nse.
+# you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
@@ -18,16 +18,10 @@ __author__ = 'Danny Goodall'
 from codefurther.lyrics import Lyrics
 
 lyrics_machine = Lyrics()
-
-song_list = lyrics_machine.artist_songs("billy bragg")
-
-for count, song_details in enumerate(song_list):
-    print(
-        "{:4}. {:40} {:50} {:50} ".format(
-            count+1,
-            song_details['song'],
-            song_details['url'],
-            song_details['title']
-        )
-    )
+#search_artist = input("Enter the name of the artist to search for:")
+search_artist = "Billy Bragg"
+if lyrics_machine.artist_exists(search_artist):
+    print(search_artist,"found!")
+else:
+    print(search_artist,"NOT found!")
 

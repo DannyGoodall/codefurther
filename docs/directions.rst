@@ -14,9 +14,9 @@
    Paragraph
    """""""""
 
-##################################
-GetDirections - Google maps routes
-##################################
+###############################
+directions - Google maps routes
+###############################
 
 The **Directions** module is part of the **codefurther** Python package, and is designed to be used in UK schools to provide
 students with access to data that describes journeys from one point to another.
@@ -81,7 +81,7 @@ The :py:class:`~directions.GetDirections` instance exposes a number of propertie
 Example program
 ===============
 
-The example code below shows how you can use these properties to get directions from once place to another.::
+The example code below shows how you can use these properties to get directions from one place to another.::
 
     from codefurther.directions import GetDirections
 
@@ -118,7 +118,7 @@ be returned, and the footer will be blank too.::
         print(step)
     print(directions.footer)
 
-When run, this code would product the following output (returned by the :py:attr:`GetDirections.heading <directions.GetDirections.heading>` property). ::
+When run, this code would produce the following output (returned by the :py:attr:`GetDirections.heading <directions.GetDirections.heading>` property). ::
 
     We couldn't find (walking) directions from: 123l123, to 345345l34.
 
