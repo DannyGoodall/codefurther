@@ -4,14 +4,20 @@ Change Log for **CodeFurther**
 
 v0.1.0.dev5 12th January 2015
 -----------------------------
-* Minor fix to MANIFEST.in
+* Tidied files in the MANIFEST.in
+* Included NULL.rst in the MANIFEST.in
+* Included requirements files in the MANIFEST.in - not sure if they should be there yet as I'm learning about packaging Python modules
+* Changes the MANIFEST.in to include codefurther/package_info.json
+* Update CHANGES.RST
+* Renamed CHANGES.rst to have lowercase extension
+* Removed orphaned top40demo.py file from project route
 
 v0.1.0.dev4 10th January 2015
 -----------------------------
 * Minor fix to requirements files
 
 v0.1.0.dev3 10th January 2015
-----------------------------
+-----------------------------
 * Minor fix to requirements files
 
 v0.1.0.dev2 10th January 2015
