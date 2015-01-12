@@ -1,7 +1,8 @@
-include requirements*.txt
+include requirements.txt
+include dev-requirements.txt
+include test-requirements.txt
 include README.rst
 include LICENSE
 include CHANGES.rst
-include demo.py
-include simpledemo.py
-include pythontop40/package_info.json
+include NULL.rst
+include codefurther/package_info.json
