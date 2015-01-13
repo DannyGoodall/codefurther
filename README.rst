@@ -31,18 +31,18 @@ Modules in the Package
     :header: "Module", "Description"
     :widths: 30, 50
 
-    ":py:mod:`top40`", "Provides access to the UK Top 40 charts for singles and albums."
-    ":py:mod:`lyrics`", "Allows lyrics for a given artist and song title to be accessed within Python."
-    ":py:mod:`directions`", "Allows Google Maps route directions to be accessed from within Python."
+    ``top40``, "Provides access to the UK Top 40 charts for singles and albums."
+    ``lyrics``, "Allows lyrics for a given artist and song title to be accessed within Python."
+    ``directions``, "Allows Google Maps route directions to be accessed from within Python."
 
 Features
 ========
 **CodeFurther** provides:
 
-* a list of the current Top 40 UK singles using the :py:attr:`singles <top40.Top40.singles>` property of the
-  :py:class:`~top40.Top40` class.
-* a list of the current Top 40 UK albums using the :py:attr:`albums <top40.Top40.singles>` property of the
-  :py:class:`~top40.Top40` class.
+* a list of the current Top 40 UK singles using the `singles <top40.Top40.singles>` property of the
+  `~top40.Top40` class.
+* a list of the current Top 40 UK albums using the `albums <top40.Top40.singles>` property of the
+  `~top40.Top40` class.
 * the ability to retrieve the lyrics for a given artist
 * the ability to find all of the songs for a given artist
 * the ability to search for a specific artist
@@ -72,4 +72,4 @@ To run the **CodeFurther** test suite, you should install the test and developme
 Changes
 -------
 
-See :doc:`Changes <changes>`.
+See `Changes <changes>`.
