@@ -57,7 +57,10 @@ setup(
         'arrow==0.4.4',
         'booby>=0.7.0',
         'six==1.8.0',
-        'future==0.14.2'
+        'future==0.14.2',
+        'python-gmaps == 0.2.1',
+        'requests-cache==0.4.8'
+
     ],
     dependency_links=[
     ]
