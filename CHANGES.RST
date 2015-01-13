@@ -2,6 +2,13 @@
 Change Log for **CodeFurther**
 ==============================
 
+v0.1.0.dev6 13th January 2015
+-----------------------------
+* Added Pull request from @msabramo SHA: cbcbafea74e1998e3740033e0271ab3cb11adc20 to remove additional restructured text chars that break the PyPI module
+* Added dev requirement for restview so that I can test for the above
+* Added setup requirement for python-gmaps (install_requires)
+* Added setup requirement for requests-cache (install_requires)
+
 v0.1.0.dev5 12th January 2015
 -----------------------------
 * Tidied files in the MANIFEST.in
