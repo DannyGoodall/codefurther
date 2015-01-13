@@ -2,6 +2,13 @@
 Change Log for **CodeFurther**
 ==============================
 
+v0.1.0.dev7 13th January 2015
+-----------------------------
+* Still trying to optimize the requirements and (install_requires)
+* Removed Munch requirement
+* Removed nap requirement
+* Added MarkupSafe requirement to install_requires
+
 v0.1.0.dev6 13th January 2015
 -----------------------------
 * Added Pull request from @msabramo SHA: cbcbafea74e1998e3740033e0271ab3cb11adc20 to remove additional restructured text chars that break the PyPI module
