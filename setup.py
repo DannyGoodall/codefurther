@@ -26,9 +26,7 @@ PROJECT_DIR = path.abspath(path.dirname(__file__))
 with open(path.join(PROJECT_DIR, LONG_DESCRIPTION_FILE), encoding='utf-8') as f:
     long_description = f.read()
 
-with open(
-        '{}/package_info.json'.format(PACKAGE_DIR)
-) as fp:
+with open('{}/package_info.json'.format(PACKAGE_DIR)) as fp:
     _info = json.load(fp)
 
 setup(
@@ -52,15 +50,13 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
     install_requires=[
-        'munch==2.0.2',
-        'nap==2.0.0',
         'arrow==0.4.4',
         'booby>=0.7.0',
         'six==1.8.0',
         'future==0.14.2',
         'python-gmaps == 0.2.1',
-        'requests-cache==0.4.8'
-
+        'requests-cache==0.4.8',
+        'markupsafe==0.23'
     ],
     dependency_links=[
     ]
