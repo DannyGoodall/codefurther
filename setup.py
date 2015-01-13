@@ -58,6 +58,5 @@ setup(
         'requests-cache==0.4.8',
         'markupsafe==0.23'
     ],
-    dependency_links=[
-    ]
+    dependency_links=[]
 )
